@@ -1,0 +1,99 @@
+name: Build Packages
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Permette di avviare manualmente
+
+jobs:
+  build-deb:
+    name: Build Debian Package
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            debhelper \
+            dh-python \
+            python3-all \
+            python3-setuptools \
+            python3-gi \
+            python3-hid \
+            devscripts \
+            fakeroot
+
+      - name: Build .deb package
+        run: |
+          dpkg-buildpackage -us -uc -b
+          mkdir -p dist
+          mv ../msr605x-utility_*.deb dist/
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: dist/*.deb
+          retention-days: 30
+
+  build-snap:
+    name: Build Snap Package
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Snap
+        uses: snapcore/action-build@v1
+        id: snapcraft
+
+      - name: Upload Snap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap-package
+          path: ${{ steps.snapcraft.outputs.snap }}
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: [build-deb, build-snap]
+    runs-on: ubuntu-22.04
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download .deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: debian-package
+          path: dist/
+
+      - name: Download Snap artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: snap-package
+          path: dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.deb
+            dist/*.snap
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
