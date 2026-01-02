@@ -48,7 +48,9 @@ class Command(bytes, Enum):
     ERASE_CARD = ESC + b'c'
 
     # Configuration
-    SET_COERCIVITY = ESC + b'x'
+    SET_HICO = ESC + b'x'      # Hi-Co mode
+    SET_LOCO = ESC + b'y'      # Lo-Co mode
+    SET_COERCIVITY = ESC + b'x'  # Alias for Hi-Co (backward compatibility)
     GET_COERCIVITY = ESC + b'd'
     SET_BPI = ESC + b'b'
     SET_BPC = ESC + b'o'

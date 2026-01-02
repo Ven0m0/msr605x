@@ -39,6 +39,9 @@ class MSR605XWindow(Adw.ApplicationWindow):
         # Update UI state
         self._update_connection_state()
 
+        # Start auto-detection polling
+        self._start_device_polling()
+
     def _build_ui(self):
         """Build the main UI."""
         # Main layout
@@ -64,22 +67,14 @@ class MSR605XWindow(Adw.ApplicationWindow):
         # Title
         title = Adw.WindowTitle(
             title="MSR605X Utility",
-            subtitle="Disconnected"
+            subtitle="Searching for device..."
         )
         self.header.set_title_widget(title)
         self.title_widget = title
 
-        # Left side - Connection controls
-        connection_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-
-        self.connect_btn = Gtk.Button(label="Connect")
-        self.connect_btn.add_css_class("suggested-action")
-        self.connect_btn.connect("clicked", self._on_connect_clicked)
-        connection_box.append(self.connect_btn)
-
-        # LED indicators
+        # Left side - LED indicators only (auto-connection)
         led_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        led_box.set_margin_start(12)
+        led_box.set_margin_start(6)
 
         self.led_green = Gtk.DrawingArea()
         self.led_green.set_size_request(12, 12)
@@ -99,8 +94,7 @@ class MSR605XWindow(Adw.ApplicationWindow):
         self.led_red.add_css_class("led-off")
         led_box.append(self.led_red)
 
-        connection_box.append(led_box)
-        self.header.pack_start(connection_box)
+        self.header.pack_start(led_box)
 
         # Right side - Menu
         menu_button = Gtk.MenuButton()
@@ -225,20 +219,26 @@ class MSR605XWindow(Adw.ApplicationWindow):
                 if btn != button:
                     btn.set_active(False)
 
+            # If switching to write panel, copy read data
+            if button.page_name == "write" and self.read_panel.current_tracks:
+                track1 = ""
+                track2 = ""
+                track3 = ""
+                for track in self.read_panel.current_tracks:
+                    if track.track_number == 1:
+                        track1 = track.data
+                    elif track.track_number == 2:
+                        track2 = track.data
+                    elif track.track_number == 3:
+                        track3 = track.data
+                self.write_panel.set_track_data(track1, track2, track3)
+
             # Switch to selected page
             self.stack.set_visible_child_name(button.page_name)
 
-    def _on_connect_clicked(self, button):
-        """Handle connect/disconnect button click."""
-        if self.device.is_connected:
-            self._disconnect()
-        else:
-            self._connect()
-
     def _connect(self):
-        """Connect to MSR605X device."""
-        self.connect_btn.set_sensitive(False)
-        self.connect_btn.set_label("Connecting...")
+        """Connect to MSR605X device (automatic)."""
+        self.title_widget.set_subtitle("Connecting...")
 
         def do_connect():
             success, message = self.device.connect()
@@ -247,41 +247,12 @@ class MSR605XWindow(Adw.ApplicationWindow):
         thread = Thread(target=do_connect, daemon=True)
         thread.start()
 
-    def _on_connect_complete(self, success: bool, message: str):
-        """Handle connection result."""
-        self.connect_btn.set_sensitive(True)
-
-        if success:
-            self._show_toast("Connected to MSR605X")
-            self._log(f"Connected: {message}")
-
-            # Test communication
-            result = self.commands.test_communication()
-            if result.success:
-                self._log("Communication test passed")
-            else:
-                self._log(f"Warning: {result.message}")
-
-            # Get firmware version
-            fw_result = self.commands.get_firmware_version()
-            if fw_result.success:
-                self._log(fw_result.message)
-
-        else:
-            self._show_toast(f"Connection failed: {message}", error=True)
-            self._log(f"Connection failed: {message}")
-
-        self._update_connection_state()
-
     def _disconnect(self):
         """Disconnect from MSR605X device."""
         success, message = self.device.disconnect()
 
         if success:
-            self._show_toast("Disconnected")
-            self._log("Disconnected from device")
-        else:
-            self._show_toast(f"Disconnect failed: {message}", error=True)
+            self._log("Device disconnected")
 
         self._update_connection_state()
 
@@ -290,21 +261,13 @@ class MSR605XWindow(Adw.ApplicationWindow):
         connected = self.device.is_connected
 
         if connected:
-            self.connect_btn.set_label("Disconnect")
-            self.connect_btn.remove_css_class("suggested-action")
-            self.connect_btn.add_css_class("destructive-action")
             self.title_widget.set_subtitle("Connected")
-
             # Update LED indicators
             self._set_led("green", True)
             self._set_led("yellow", False)
             self._set_led("red", False)
         else:
-            self.connect_btn.set_label("Connect")
-            self.connect_btn.remove_css_class("destructive-action")
-            self.connect_btn.add_css_class("suggested-action")
-            self.title_widget.set_subtitle("Disconnected")
-
+            self.title_widget.set_subtitle("Searching for device...")
             # All LEDs off
             self._set_led("green", False)
             self._set_led("yellow", False)
@@ -364,3 +327,49 @@ class MSR605XWindow(Adw.ApplicationWindow):
             if btn.page_name == "settings":
                 btn.set_active(True)
                 break
+
+    def _start_device_polling(self):
+        """Start polling for device connection."""
+        self._polling_source_id = GLib.timeout_add(1000, self._check_device_connection)
+        self._connecting = False
+
+    def _check_device_connection(self) -> bool:
+        """Check if device is available and auto-connect/disconnect."""
+        devices = self.device.enumerate_devices()
+
+        if self.device.is_connected:
+            # Check if device was unplugged
+            if not devices:
+                self._log("Device unplugged")
+                self._disconnect()
+        else:
+            # Check if device is available and try to connect
+            if devices and not self._connecting:
+                self._connecting = True
+                self._log("Device detected, connecting...")
+                self._connect()
+            elif not devices:
+                self._connecting = False
+
+        return True  # Continue polling
+
+    def _on_connect_complete(self, success: bool, message: str):
+        """Handle connection result."""
+        self._connecting = False
+
+        if success:
+            self._show_toast("Device connected")
+            self._log(f"Connected: {message}")
+
+            # Reset device to clean state
+            self.commands.reset()
+
+            # Get firmware version
+            fw_result = self.commands.get_firmware_version()
+            if fw_result.success:
+                self._log(fw_result.message)
+
+        else:
+            self._log(f"Connection failed: {message}")
+
+        self._update_connection_state()

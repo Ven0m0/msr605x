@@ -159,6 +159,11 @@ class WritePanel(Gtk.Box):
         self.write_btn.connect("clicked", self._on_write_clicked)
         action_box.append(self.write_btn)
 
+        self.batch_btn = Gtk.Button(label="Batch Write...")
+        self.batch_btn.add_css_class("action-button")
+        self.batch_btn.connect("clicked", self._on_batch_write_clicked)
+        action_box.append(self.batch_btn)
+
         self.append(action_box)
 
     def _create_track_input(self, label: str, description: str, max_length: int) -> Gtk.Box:
@@ -288,6 +293,9 @@ class WritePanel(Gtk.Box):
         """Handle write operation result."""
         self._set_writing_state(False)
 
+        # Reset device to idle state (turn off LEDs, cancel any pending operation)
+        self.commands.reset()
+
         if write_result.success:
             if verify_result:
                 if verify_result.success:
@@ -380,3 +388,225 @@ class WritePanel(Gtk.Box):
         self.track1_entry.set_text(track1)
         self.track2_entry.set_text(track2)
         self.track3_entry.set_text(track3)
+
+    def _on_batch_write_clicked(self, button):
+        """Open batch write dialog."""
+        # Get track data
+        track1 = self.track1_entry.get_text() if self.track1_check.get_active() else None
+        track2 = self.track2_entry.get_text() if self.track2_check.get_active() else None
+        track3 = self.track3_entry.get_text() if self.track3_check.get_active() else None
+
+        if not any([track1, track2, track3]):
+            self.show_toast("Please enter data for at least one track", True)
+            return
+
+        dialog = BatchWriteDialog(
+            self.get_root(),
+            self.commands,
+            track1, track2, track3,
+            self.format_combo.get_active_id()
+        )
+        dialog.present()
+
+
+class BatchWriteDialog(Adw.Window):
+    """Dialog for batch writing multiple cards."""
+
+    def __init__(self, parent, commands, track1, track2, track3, format_id):
+        super().__init__()
+
+        self.commands = commands
+        self.track1 = track1
+        self.track2 = track2
+        self.track3 = track3
+        self.format_id = format_id
+        self.cards_written = 0
+        self.is_running = False
+        self.has_error = False
+
+        self.set_transient_for(parent)
+        self.set_modal(True)
+        self.set_title("Batch Write")
+        self.set_default_size(400, 300)
+
+        self._build_ui()
+
+    def _build_ui(self):
+        """Build dialog UI."""
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        main_box.set_margin_top(24)
+        main_box.set_margin_bottom(24)
+        main_box.set_margin_start(24)
+        main_box.set_margin_end(24)
+        self.set_content(main_box)
+
+        # Title
+        title = Gtk.Label(label="Batch Write Mode")
+        title.add_css_class("title-1")
+        main_box.append(title)
+
+        # Counter display
+        counter_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        counter_box.set_margin_top(24)
+
+        self.counter_label = Gtk.Label(label="0")
+        self.counter_label.add_css_class("title-1")
+        self.counter_label.set_markup("<span size='xx-large' weight='bold'>0</span>")
+        counter_box.append(self.counter_label)
+
+        counter_desc = Gtk.Label(label="Cards Written Successfully")
+        counter_desc.add_css_class("dim-label")
+        counter_box.append(counter_desc)
+
+        main_box.append(counter_box)
+
+        # Status
+        self.status_label = Gtk.Label(label="Click Start to begin writing cards")
+        self.status_label.set_margin_top(16)
+        self.status_label.set_wrap(True)
+        main_box.append(self.status_label)
+
+        # Spinner
+        self.spinner = Gtk.Spinner()
+        self.spinner.set_visible(False)
+        main_box.append(self.spinner)
+
+        # Error display
+        self.error_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.error_box.set_visible(False)
+        self.error_box.set_margin_top(16)
+
+        error_icon = Gtk.Image.new_from_icon_name("dialog-error-symbolic")
+        error_icon.set_icon_size(Gtk.IconSize.LARGE)
+        self.error_box.append(error_icon)
+
+        self.error_label = Gtk.Label()
+        self.error_label.add_css_class("error")
+        self.error_label.set_wrap(True)
+        self.error_box.append(self.error_label)
+
+        main_box.append(self.error_box)
+
+        # Spacer
+        spacer = Gtk.Box()
+        spacer.set_vexpand(True)
+        main_box.append(spacer)
+
+        # Buttons
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        button_box.set_halign(Gtk.Align.CENTER)
+
+        self.start_btn = Gtk.Button(label="Start")
+        self.start_btn.add_css_class("suggested-action")
+        self.start_btn.add_css_class("pill")
+        self.start_btn.connect("clicked", self._on_start_clicked)
+        button_box.append(self.start_btn)
+
+        self.stop_btn = Gtk.Button(label="Stop")
+        self.stop_btn.add_css_class("destructive-action")
+        self.stop_btn.add_css_class("pill")
+        self.stop_btn.set_sensitive(False)
+        self.stop_btn.connect("clicked", self._on_stop_clicked)
+        button_box.append(self.stop_btn)
+
+        self.close_btn = Gtk.Button(label="Close")
+        self.close_btn.add_css_class("pill")
+        self.close_btn.connect("clicked", lambda b: self.close())
+        button_box.append(self.close_btn)
+
+        main_box.append(button_box)
+
+    def _on_start_clicked(self, button):
+        """Start batch writing."""
+        self.is_running = True
+        self.has_error = False
+        self.error_box.set_visible(False)
+        self.start_btn.set_sensitive(False)
+        self.stop_btn.set_sensitive(True)
+        self.close_btn.set_sensitive(False)
+        self.spinner.set_visible(True)
+        self.spinner.start()
+
+        self._write_next_card()
+
+    def _on_stop_clicked(self, button):
+        """Stop batch writing."""
+        self.is_running = False
+        self._update_stopped_state()
+
+    def _update_stopped_state(self):
+        """Update UI when stopped."""
+        self.spinner.stop()
+        self.spinner.set_visible(False)
+        self.start_btn.set_sensitive(True)
+        self.stop_btn.set_sensitive(False)
+        self.close_btn.set_sensitive(True)
+
+        # Reset device to idle state (turn off LEDs)
+        self.commands.reset()
+
+        if self.has_error:
+            self.status_label.set_text(f"Stopped due to error after {self.cards_written} cards")
+        else:
+            self.status_label.set_text(f"Stopped. {self.cards_written} cards written.")
+
+    def _write_next_card(self):
+        """Write and verify next card."""
+        if not self.is_running:
+            return
+
+        self.status_label.set_text("Swipe card to write...")
+
+        def do_write():
+            # Write card
+            if self.format_id == "raw":
+                try:
+                    t1 = bytes.fromhex(self.track1) if self.track1 else None
+                    t2 = bytes.fromhex(self.track2) if self.track2 else None
+                    t3 = bytes.fromhex(self.track3) if self.track3 else None
+                    result = self.commands.write_raw(t1, t2, t3, timeout_ms=30000)
+                except ValueError as e:
+                    from ..msr605x.commands import CommandResult
+                    from ..msr605x.constants import ErrorCode
+                    result = CommandResult(
+                        success=False,
+                        error_code=ErrorCode.COMMAND_FORMAT_ERROR,
+                        message=f"Invalid hex: {e}"
+                    )
+            else:
+                result = self.commands.write_iso(self.track1, self.track2, self.track3, timeout_ms=30000)
+
+            if not result.success:
+                GLib.idle_add(self._on_write_error, f"Write failed: {result.message}")
+                return
+
+            # Verify by reading back
+            GLib.idle_add(lambda: self.status_label.set_text("Verifying... swipe again"))
+
+            verify_result = self.commands.compare_card(self.track1, self.track2, self.track3, timeout_ms=30000)
+
+            if verify_result.success:
+                GLib.idle_add(self._on_card_success)
+            else:
+                GLib.idle_add(self._on_write_error, f"Verify failed: {verify_result.message}")
+
+        thread = Thread(target=do_write, daemon=True)
+        thread.start()
+
+    def _on_card_success(self):
+        """Handle successful write+verify."""
+        self.cards_written += 1
+        self.counter_label.set_markup(f"<span size='xx-large' weight='bold'>{self.cards_written}</span>")
+        self.status_label.set_text("Card written successfully! Swipe next card...")
+
+        if self.is_running:
+            # Continue with next card
+            self._write_next_card()
+
+    def _on_write_error(self, message):
+        """Handle write error - stop batch."""
+        self.has_error = True
+        self.is_running = False
+        self.error_label.set_text(message)
+        self.error_box.set_visible(True)
+        self._update_stopped_state()

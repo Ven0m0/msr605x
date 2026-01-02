@@ -11,34 +11,34 @@ Un'applicazione nativa GTK4 per Ubuntu per leggere, scrivere e gestire carte a b
 
 MSR605X Utility è un'alternativa open source all'utility Windows per il lettore/scrittore di carte magnetiche MSR605X. L'applicazione è stata progettata per funzionare nativamente su Ubuntu e altre distribuzioni Linux compatibili con GTK4.
 
+**Testato con firmware**: REVH7.31
+
 ## Funzionalità
 
 ### Operazioni sulle Carte
-- **Lettura**: Leggi tutte e 3 le tracce (ISO, AAMVA, dati grezzi)
-- **Scrittura**: Scrivi dati sulle carte a banda magnetica
+- **Lettura**: Leggi tutte e 3 le tracce (ISO e dati grezzi)
+- **Scrittura**: Scrivi dati su tutte e 3 le tracce
 - **Cancellazione**: Cancellazione selettiva delle tracce
 - **Copia**: Clona carte (lettura + scrittura)
-- **Confronto**: Verifica i dati scritti
+
+### Connessione Automatica
+- **Plug & Play**: Il dispositivo viene rilevato e connesso automaticamente
+- **Hot-plug**: Rilevamento automatico quando il dispositivo viene collegato/scollegato
+- **Nessun pulsante Connect**: L'interfaccia è semplificata, la connessione è gestita automaticamente
 
 ### Formati Supportati
 - **ISO 7811** - Standard internazionale per carte magnetiche
-- **AAMVA** - Patenti di guida (standard americano)
-- **California DMV** - Formato specifico California
 - **Dati Grezzi** - Accesso diretto ai bit
-- **Personalizzato** - Formati definiti dall'utente
 
-### Configurazione Avanzata
+### Configurazione
 - **Coercività**: Hi-Co (2750-4000 Oe) / Lo-Co (300 Oe)
 - **BPI**: 75 o 210 bit per pollice per traccia
 - **BPC**: 5, 7 o 8 bit per carattere per traccia
-- **Zeri iniziali**: Configurazione personalizzata
-- **Sentinel**: Start/End sentinel personalizzabili
 
 ### Gestione File
 - Salvataggio dati in formato JSON
 - Salvataggio dati in formato CSV
 - Caricamento dati da file
-- Esportazione batch
 
 ### Interfaccia Utente
 - Design moderno con GTK4 e libadwaita
@@ -179,21 +179,21 @@ L'applicazione sarà anche disponibile nel menu applicazioni come "MSR605X Utili
 
 ### Guida Rapida
 
-1. **Connessione**: Clicca su "Connect" per collegarti al dispositivo MSR605X
+1. **Connessione**: Il dispositivo viene rilevato e connesso automaticamente quando collegato via USB
 2. **Lettura**:
    - Vai al pannello "Read Card"
    - Seleziona il formato (ISO o Raw)
    - Clicca "Read Card" e striscia la carta
 3. **Scrittura**:
    - Vai al pannello "Write Card"
-   - Inserisci i dati per ogni traccia desiderata
+   - Inserisci i dati per ogni traccia (senza sentinel %, ;, ? - vengono aggiunti automaticamente)
    - Clicca "Write Card" e striscia una carta vuota
 4. **Cancellazione**:
    - Vai al pannello "Erase Card"
    - Seleziona le tracce da cancellare
    - Conferma e striscia la carta
 5. **Impostazioni**:
-   - Configura coercività, BPI, BPC
+   - Configura coercività (Hi-Co/Lo-Co)
    - Esegui test diagnostici sul dispositivo
 
 ## Struttura del Progetto
@@ -247,14 +247,20 @@ msr605x-ubuntu/
 |---------|-------------|
 | ESC a   | Reset dispositivo |
 | ESC e   | Test comunicazione |
-| ESC t   | Test RAM |
 | ESC v   | Versione firmware |
 | ESC r   | Lettura ISO |
 | ESC m   | Lettura Raw |
 | ESC w   | Scrittura ISO |
 | ESC n   | Scrittura Raw |
-| ESC c   | Cancellazione |
-| ESC x   | Imposta coercività |
+| ESC c   | Cancellazione (mask: 0x01=T1, 0x02=T2, 0x04=T3) |
+| ESC x   | Imposta Hi-Co |
+| ESC y   | Imposta Lo-Co |
+
+### Note Tecniche Importanti
+
+- **Sentinel**: NON includere i sentinel (%, ;, ?) nei dati di scrittura - il dispositivo li aggiunge automaticamente
+- **Formato Scrittura ISO**: `ESC w ESC s ESC 01 [data] ESC 02 [data] ESC 03 [data] ? FS`
+- **Protocollo HID**: Pacchetti da 64 byte con header (bit7=first, bit6=last, bits0-5=length)
 
 ### Coercività
 

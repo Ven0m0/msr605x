@@ -84,6 +84,8 @@ class TrackParser:
         """
         Extract data for a specific track from response.
 
+        Response format: ESC s ESC 01 [t1] ESC 02 [t2] ESC 03 [t3] ? FS ESC [status]
+
         Args:
             response: Full response bytes
             track_num: Track number (1, 2, or 3)
@@ -94,28 +96,24 @@ class TrackParser:
         """
         # Track marker is ESC + track_num
         start_marker = bytes([0x1b, track_num])
-        end_marker = b'\x1c'  # FS
 
         try:
             start_idx = response.find(start_marker)
             if start_idx == -1:
                 return None
 
-            # Find end of track data
-            data_start = start_idx + len(start_marker)
-            end_idx = response.find(end_marker, data_start)
+            # Data starts after ESC + track_num
+            data_start = start_idx + 2
 
-            if end_idx == -1:
-                # Try to find next track marker or status
-                next_track = response.find(bytes([0x1b, track_num + 1]), data_start)
-                status_marker = response.find(b'\x1b0', data_start)
+            # Find end of track data - look for the NEXT ESC byte
+            # which could be: ESC 02, ESC 03, ESC 0 (status), or ? FS
+            end_idx = len(response)
 
-                if next_track != -1:
-                    end_idx = next_track
-                elif status_marker != -1:
-                    end_idx = status_marker
-                else:
-                    end_idx = len(response)
+            # Check for next track markers
+            for next_marker in [b'\x1b\x02', b'\x1b\x03', b'\x1b0', b'\x1b1', b'?\x1c', b'\x1c']:
+                pos = response.find(next_marker, data_start)
+                if pos != -1 and pos < end_idx:
+                    end_idx = pos
 
             raw_data = response[data_start:end_idx]
 
@@ -225,35 +223,55 @@ class TrackParser:
         """
         Build ISO format write data payload.
 
+        IMPORTANT: Do NOT include sentinels (%, ;, ?) in the data!
+        The MSR605X device adds them automatically:
+        - Track 1: %...?
+        - Track 2: ;...?
+        - Track 3: ;...?
+
         Args:
-            track1: Track 1 data (alphanumeric)
-            track2: Track 2 data (numeric)
-            track3: Track 3 data (numeric)
+            track1: Track 1 data (alphanumeric, WITHOUT sentinels)
+            track2: Track 2 data (numeric, WITHOUT sentinels)
+            track3: Track 3 data (numeric, WITHOUT sentinels)
 
         Returns:
             Bytes to send to device.
         """
-        data = b'\x1bs'  # Start of data
+        data = b'\x1bs'  # Start of data block (ESC s)
 
-        # Track 1
+        # Track 1 - NO sentinels, device adds them
         data += b'\x1b\x01'
         if track1:
-            data += track1.upper().encode('ascii')
-        data += b'\x1c'
+            # Remove sentinels if user accidentally included them
+            t1 = track1.upper()
+            if t1.startswith('%'):
+                t1 = t1[1:]
+            if t1.endswith('?'):
+                t1 = t1[:-1]
+            data += t1.encode('ascii')
 
-        # Track 2
+        # Track 2 - NO sentinels, device adds them
         data += b'\x1b\x02'
         if track2:
-            data += track2.encode('ascii')
-        data += b'\x1c'
+            t2 = track2
+            if t2.startswith(';'):
+                t2 = t2[1:]
+            if t2.endswith('?'):
+                t2 = t2[:-1]
+            data += t2.encode('ascii')
 
-        # Track 3
+        # Track 3 - NO sentinels, device adds them
         data += b'\x1b\x03'
         if track3:
-            data += track3.encode('ascii')
-        data += b'\x1c'
+            t3 = track3
+            if t3.startswith(';'):
+                t3 = t3[1:]
+            if t3.endswith('?'):
+                t3 = t3[:-1]
+            data += t3.encode('ascii')
 
-        data += b'?\x1c'  # End sentinel and separator
+        # End with ? FS (required by MSR605X protocol)
+        data += b'?\x1c'
 
         return data
 
@@ -266,6 +284,9 @@ class TrackParser:
         """
         Build raw format write data payload.
 
+        For raw write, include length byte after track number:
+        ESC s ESC 01 LEN [data] ESC 02 LEN [data] ESC 03 LEN [data] ? FS
+
         Args:
             track1: Track 1 raw bytes
             track2: Track 2 raw bytes
@@ -274,26 +295,30 @@ class TrackParser:
         Returns:
             Bytes to send to device.
         """
-        data = b'\x1bs'  # Start of data
+        data = b'\x1bs'  # Start of data block (ESC s)
 
-        # Track 1
+        # Track 1 with length byte
         data += b'\x1b\x01'
         if track1:
-            data += track1
-        data += b'\x1c'
+            data += bytes([len(track1)]) + track1
+        else:
+            data += b'\x00'  # Zero length
 
-        # Track 2
+        # Track 2 with length byte
         data += b'\x1b\x02'
         if track2:
-            data += track2
-        data += b'\x1c'
+            data += bytes([len(track2)]) + track2
+        else:
+            data += b'\x00'  # Zero length
 
-        # Track 3
+        # Track 3 with length byte
         data += b'\x1b\x03'
         if track3:
-            data += track3
-        data += b'\x1c'
+            data += bytes([len(track3)]) + track3
+        else:
+            data += b'\x00'  # Zero length
 
+        # End with ? FS (required by MSR605X protocol)
         data += b'?\x1c'
 
         return data

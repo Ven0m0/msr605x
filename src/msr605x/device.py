@@ -137,6 +137,47 @@ class MSR605XDevice:
             except Exception as e:
                 return False, f"Disconnect failed: {str(e)}"
 
+    def _build_packets(self, data: bytes) -> list[bytes]:
+        """
+        Build HID packets with MSR605X header format.
+
+        Header byte: bit7=first, bit6=last, bit0-5=length
+        Supports multi-packet messages for data > 63 bytes.
+        """
+        MAX_PAYLOAD = 63
+        packets = []
+
+        offset = 0
+        total_len = len(data)
+
+        while offset < total_len:
+            chunk = data[offset:offset + MAX_PAYLOAD]
+            chunk_len = len(chunk)
+
+            is_first = (offset == 0)
+            is_last = (offset + chunk_len >= total_len)
+
+            header = chunk_len
+            if is_first:
+                header |= 0x80
+            if is_last:
+                header |= 0x40
+
+            packet = bytes([header]) + chunk + bytes(MAX_PAYLOAD - chunk_len)
+            packets.append(packet)
+
+            offset += MAX_PAYLOAD
+
+        return packets
+
+    def _parse_packet(self, packet: list) -> bytes:
+        """Extract data from HID packet with MSR605X header."""
+        if not packet:
+            return b''
+        header = packet[0]
+        length = header & 0x3F
+        return bytes(packet[1:1+length])
+
     def send_command(self, command: bytes, data: bytes = b'') -> tuple[bool, bytes]:
         """
         Send a command to the device.
@@ -153,19 +194,15 @@ class MSR605XDevice:
 
         with self._lock:
             try:
-                # Prepare the HID report
-                # First byte is report ID (0x00 for MSR605X)
+                # Build payload and packets with MSR605X header
                 payload = command + data
-                report = bytes([0x00]) + payload
+                packets = self._build_packets(payload)
 
-                # Pad to report size
-                if len(report) < HID_REPORT_SIZE:
-                    report = report + bytes(HID_REPORT_SIZE - len(report))
-
-                # Send the report
-                bytes_written = self._device.write(report)
-                if bytes_written < 0:
-                    return False, b''
+                # Send all packets
+                for packet in packets:
+                    bytes_written = self._device.write(packet)
+                    if bytes_written < 0:
+                        return False, b''
 
                 return True, b''
 
@@ -176,6 +213,8 @@ class MSR605XDevice:
     def receive_response(self, timeout_ms: int = HID_TIMEOUT_MS) -> tuple[bool, bytes]:
         """
         Receive response from device.
+
+        Simple implementation matching working MSR605X driver.
 
         Args:
             timeout_ms: Timeout in milliseconds
@@ -190,32 +229,19 @@ class MSR605XDevice:
             try:
                 response = b''
                 start_time = time.time()
-                timeout_sec = timeout_ms / 1000.0
 
-                while True:
-                    # Check timeout
-                    if time.time() - start_time > timeout_sec:
-                        break
-
-                    # Read with short timeout for responsiveness
-                    data = self._device.read(HID_REPORT_SIZE, timeout_ms=100)
+                while (time.time() - start_time) * 1000 < timeout_ms:
+                    # Read with 1 second chunks for responsiveness
+                    data = self._device.read(HID_REPORT_SIZE, timeout_ms=1000)
                     if data:
-                        response += bytes(data)
+                        # Parse packet with MSR605X header format
+                        header = data[0]
+                        length = header & 0x3F
+                        response += bytes(data[1:1+length])
 
-                        # Check for end of response (ESC + status code)
-                        if len(response) >= 2:
-                            # Look for response termination
-                            if b'\x1b0' in response or b'\x1b1' in response:
-                                break
-                            # Also check for FS (field separator) as end marker
-                            if b'\x1c' in response:
-                                break
-                    else:
-                        # No data, short sleep
-                        time.sleep(0.01)
-
-                # Strip null bytes and report ID
-                response = response.rstrip(b'\x00')
+                        # Check for last packet flag
+                        if header & 0x40:
+                            break
 
                 return len(response) > 0, response
 
@@ -253,10 +279,12 @@ class MSR605XDevice:
 
         with self._lock:
             try:
+                # Set non-blocking mode for flush
+                self._device.set_nonblocking(True)
                 # Read and discard any pending data
-                while True:
-                    data = self._device.read(HID_REPORT_SIZE, timeout_ms=50)
-                    if not data:
-                        break
+                while self._device.read(HID_REPORT_SIZE, timeout_ms=50):
+                    pass
+                # Restore blocking mode
+                self._device.set_nonblocking(False)
             except Exception:
                 pass

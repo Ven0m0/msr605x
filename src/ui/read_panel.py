@@ -187,6 +187,9 @@ class ReadPanel(Gtk.Box):
         """Handle read operation result."""
         self._set_reading_state(False)
 
+        # Reset device to idle state (turn off LEDs, cancel any pending operation)
+        self.commands.reset()
+
         if result.success and result.tracks:
             self.current_tracks = result.tracks
             self._display_tracks(result.tracks)

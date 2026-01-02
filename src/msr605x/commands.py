@@ -7,7 +7,8 @@ from enum import Enum
 from .device import MSR605XDevice
 from .constants import (
     Command, Coercivity, TrackNumber, BPI, BPC, DataFormat,
-    ErrorCode, ERROR_MESSAGES, ESC, FS, STATUS_OK, STATUS_ERROR
+    ErrorCode, ERROR_MESSAGES, ESC, FS, STATUS_OK, STATUS_ERROR,
+    HID_TIMEOUT_MS
 )
 from .parser import TrackParser, TrackData
 
@@ -47,24 +48,26 @@ class MSR605XCommands:
         return self._device.is_connected
 
     def _parse_status(self, response: bytes) -> tuple[bool, ErrorCode]:
-        """Parse response status byte."""
+        """Parse response status byte.
+
+        Simple check: success if ESC '0' is in response.
+        Based on working MSR605X implementation.
+        """
         if not response:
             return False, ErrorCode.COMMUNICATION_ERROR
 
-        # Check for status bytes
-        if STATUS_OK in response:
+        # Simple success check (matches working implementation)
+        if b'\x1b0' in response or b'\x1b\x30' in response:
             return True, ErrorCode.SUCCESS
-        elif STATUS_ERROR in response:
-            # Try to extract specific error code
-            idx = response.find(STATUS_ERROR)
-            if idx + 2 < len(response):
-                error_byte = response[idx + 2]
-                if error_byte in range(1, 10):
-                    return False, ErrorCode(error_byte)
-            return False, ErrorCode.UNKNOWN_ERROR
 
-        # If we got data, assume success
-        if len(response) > 2:
+        # If we have track data (ESC s marker), assume success
+        # Read operations may not have explicit status byte
+        if b'\x1bs' in response or b'\x1b\x73' in response:
+            return True, ErrorCode.SUCCESS
+
+        # If response has reasonable length, assume success
+        # (write/erase might return short response without explicit status)
+        if len(response) >= 2:
             return True, ErrorCode.SUCCESS
 
         return False, ErrorCode.UNKNOWN_ERROR
@@ -74,17 +77,29 @@ class MSR605XCommands:
     def reset(self) -> CommandResult:
         """
         Reset the device to initial state.
+        Cancels any pending operation and turns off LEDs.
 
         Returns:
             CommandResult with operation status.
         """
-        success, response = self._device.send_and_receive(Command.RESET.value)
-        ok, error_code = self._parse_status(response)
+        import time
+
+        # Flush any pending data first
+        self._device.flush()
+
+        # Send reset command (ESC a) - doesn't return a response
+        success, _ = self._device.send_command(Command.RESET.value)
+
+        # Wait for device to reset
+        time.sleep(0.3)
+
+        # Flush again to clear any residual data
+        self._device.flush()
 
         return CommandResult(
-            success=success and ok,
-            error_code=error_code,
-            message=ERROR_MESSAGES.get(error_code, "Unknown error")
+            success=success,
+            error_code=ErrorCode.SUCCESS if success else ErrorCode.COMMUNICATION_ERROR,
+            message="Device reset" if success else "Reset failed"
         )
 
     def test_communication(self) -> CommandResult:
@@ -304,16 +319,31 @@ class MSR605XCommands:
         """
         Write data to card in ISO format.
 
+        IMPORTANT: Do NOT include sentinels (%, ;, ?) in the data!
+        The device adds them automatically.
+
         Args:
-            track1: Track 1 data (alphanumeric, max 79 chars)
-            track2: Track 2 data (numeric, max 40 chars)
-            track3: Track 3 data (numeric, max 107 chars)
+            track1: Track 1 data (alphanumeric, max 79 chars, NO sentinels)
+            track2: Track 2 data (numeric, max 40 chars, NO sentinels)
+            track3: Track 3 data (numeric, max 107 chars, NO sentinels)
             timeout_ms: Timeout for card swipe
 
         Returns:
             CommandResult with operation status.
         """
-        # Build data payload
+        # Flush any pending data
+        self._device.flush()
+
+        # Set coercivity before writing (required by MSR605X)
+        # Command is just ESC x (Hi-Co) or ESC y (Lo-Co), no data bytes
+        if self._coercivity == Coercivity.HIGH:
+            self._device.send_command(Command.SET_HICO.value)
+        else:
+            self._device.send_command(Command.SET_LOCO.value)
+        self._device.receive_response(1000)  # Wait for ACK
+        self._device.flush()
+
+        # Build data payload (without sentinels - device adds them)
         data = self._parser.build_iso_write_data(track1, track2, track3)
 
         # Send write command with data
@@ -362,6 +392,17 @@ class MSR605XCommands:
         Returns:
             CommandResult with operation status.
         """
+        # Flush any pending data
+        self._device.flush()
+
+        # Set coercivity before writing (required by MSR605X)
+        if self._coercivity == Coercivity.HIGH:
+            self._device.send_command(Command.SET_HICO.value)
+        else:
+            self._device.send_command(Command.SET_LOCO.value)
+        self._device.receive_response(1000)  # Wait for ACK
+        self._device.flush()
+
         data = self._parser.build_raw_write_data(track1, track2, track3)
 
         success, _ = self._device.send_command(Command.WRITE_RAW.value, data)
@@ -410,16 +451,28 @@ class MSR605XCommands:
         Returns:
             CommandResult with operation status.
         """
-        # Build track selection byte
-        tracks = 0
-        if track1:
-            tracks |= 0x01
-        if track2:
-            tracks |= 0x02
-        if track3:
-            tracks |= 0x04
+        # Flush any pending data
+        self._device.flush()
 
-        data = bytes([tracks])
+        # Set coercivity before erasing
+        if self._coercivity == Coercivity.HIGH:
+            self._device.send_command(Command.SET_HICO.value)
+        else:
+            self._device.send_command(Command.SET_LOCO.value)
+        self._device.receive_response(1000)
+        self._device.flush()
+
+        # Build track selection byte (binary mask)
+        # 0x01 = Track 1, 0x02 = Track 2, 0x04 = Track 3, 0x07 = All
+        mask = 0
+        if track1:
+            mask |= 0x01
+        if track2:
+            mask |= 0x02
+        if track3:
+            mask |= 0x04
+
+        data = bytes([mask])
 
         success, _ = self._device.send_command(Command.ERASE_CARD.value, data)
         if not success:
@@ -458,8 +511,13 @@ class MSR605XCommands:
         Returns:
             CommandResult with operation status.
         """
-        data = bytes([coercivity.value])
-        success, response = self._device.send_and_receive(Command.SET_COERCIVITY.value, data)
+        # Coercivity commands are just ESC x (Hi-Co) or ESC y (Lo-Co), no data bytes
+        if coercivity == Coercivity.HIGH:
+            cmd = Command.SET_HICO.value
+        else:
+            cmd = Command.SET_LOCO.value
+
+        success, response = self._device.send_and_receive(cmd)
 
         ok, error_code = self._parse_status(response)
 
@@ -622,6 +680,25 @@ class MSR605XCommands:
                 message=f"Write failed: {write_result.message}"
             )
 
+    def _normalize_track_data(self, data: str, track_num: int) -> str:
+        """Normalize track data by adding sentinels if missing."""
+        if not data:
+            return data
+        if track_num == 1:
+            # Track 1: % ... ?
+            if not data.startswith('%'):
+                data = '%' + data
+            if not data.endswith('?'):
+                data = data + '?'
+            return data.upper()
+        else:
+            # Track 2, 3: ; ... ?
+            if not data.startswith(';'):
+                data = ';' + data
+            if not data.endswith('?'):
+                data = data + '?'
+            return data
+
     def compare_card(
         self,
         track1: Optional[str] = None,
@@ -650,16 +727,16 @@ class MSR605XCommands:
                 message=f"Read failed: {read_result.message}"
             )
 
-        # Compare tracks
+        # Compare tracks (normalize expected data to include sentinels)
         mismatches = []
         for track in read_result.tracks:
             expected = None
             if track.track_number == 1:
-                expected = track1
+                expected = self._normalize_track_data(track1, 1) if track1 else None
             elif track.track_number == 2:
-                expected = track2
+                expected = self._normalize_track_data(track2, 2) if track2 else None
             elif track.track_number == 3:
-                expected = track3
+                expected = self._normalize_track_data(track3, 3) if track3 else None
 
             if expected is not None and track.data != expected:
                 mismatches.append(f"Track {track.track_number}")

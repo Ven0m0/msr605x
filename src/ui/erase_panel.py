@@ -244,6 +244,9 @@ class ErasePanel(Gtk.Box):
         """Handle erase operation result."""
         self._set_erasing_state(False)
 
+        # Reset device to idle state (turn off LEDs, cancel any pending operation)
+        self.commands.reset()
+
         if result.success:
             self.status_label.set_text("Card erased successfully")
             self.show_toast("Card erased successfully", False)
