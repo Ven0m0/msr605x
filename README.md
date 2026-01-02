@@ -1,419 +1,327 @@
-# MSR605X Utility per Ubuntu
+# MSR605X Utility for Ubuntu
 
-Un'applicazione nativa GTK4 per Ubuntu per leggere, scrivere e gestire carte a banda magnetica utilizzando il dispositivo MSR605X.
+A native GTK4 application for Ubuntu to read, write, and manage magnetic stripe cards using the MSR605X device.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10+-green.svg)
 ![GTK](https://img.shields.io/badge/GTK-4.0-orange.svg)
 ![Platform](https://img.shields.io/badge/platform-Ubuntu%2022.04+-purple.svg)
 
-## Panoramica
+## Overview
 
-MSR605X Utility è un'alternativa open source all'utility Windows per il lettore/scrittore di carte magnetiche MSR605X. L'applicazione è stata progettata per funzionare nativamente su Ubuntu e altre distribuzioni Linux compatibili con GTK4.
+MSR605X Utility is an open source alternative to the Windows utility for the MSR605X magnetic card reader/writer. The application is designed to work natively on Ubuntu and other Linux distributions compatible with GTK4.
 
-**Testato con firmware**: REVH7.31
+**Tested with firmware**: REVH7.31
 
-## Funzionalità
+## Features
 
-### Operazioni sulle Carte
-- **Lettura**: Leggi tutte e 3 le tracce (ISO e dati grezzi)
-- **Scrittura**: Scrivi dati su tutte e 3 le tracce
-- **Cancellazione**: Cancellazione selettiva delle tracce
-- **Copia**: Clona carte (lettura + scrittura)
+### Card Operations
+- **Read**: Read all 3 tracks (ISO and raw data)
+- **Write**: Write data to all 3 tracks
+- **Erase**: Selective track erasure
+- **Clone**: Clone cards (read + write)
 
-### Connessione Automatica
-- **Plug & Play**: Il dispositivo viene rilevato e connesso automaticamente
-- **Hot-plug**: Rilevamento automatico quando il dispositivo viene collegato/scollegato
-- **Nessun pulsante Connect**: L'interfaccia è semplificata, la connessione è gestita automaticamente
+### Automatic Connection
+- **Plug & Play**: Device is automatically detected and connected
+- **Hot-plug**: Automatic detection when device is plugged/unplugged
+- **No Connect button**: Simplified interface, connection is handled automatically
 
-### Formati Supportati
-- **ISO 7811** - Standard internazionale per carte magnetiche
-- **Dati Grezzi** - Accesso diretto ai bit
+### Supported Formats
+- **ISO 7811** - International standard for magnetic cards
+- **Raw Data** - Direct bit access
 
-### Configurazione
-- **Coercività**: Hi-Co (2750-4000 Oe) / Lo-Co (300 Oe)
-- **BPI**: 75 o 210 bit per pollice per traccia
-- **BPC**: 5, 7 o 8 bit per carattere per traccia
+### Configuration
+- **Coercivity**: Hi-Co (2750-4000 Oe) / Lo-Co (300 Oe)
+- **BPI**: 75 or 210 bits per inch per track
+- **BPC**: 5, 7, or 8 bits per character per track
 
-### Gestione File
-- Salvataggio dati in formato JSON
-- Salvataggio dati in formato CSV
-- Caricamento dati da file
+### File Management
+- Save data in JSON format
+- Save data in CSV format
+- Load data from file
 
-### Interfaccia Utente
-- Design moderno con GTK4 e libadwaita
-- Supporto tema chiaro/scuro automatico
-- Indicatori LED di stato
-- Log delle operazioni in tempo reale
-- Notifiche toast per feedback immediato
+### User Interface
+- Modern design with GTK4 and libadwaita
+- Automatic light/dark theme support
+- LED status indicators
+- Real-time operation log
+- Toast notifications for immediate feedback
 
-## Requisiti di Sistema
+## System Requirements
 
-- **Sistema Operativo**: Ubuntu 22.04+ (o altre distribuzioni Linux con GTK4)
-- **Python**: 3.10 o superiore
-- **Hardware**: Dispositivo MSR605X collegato via USB
+- **Operating System**: Ubuntu 22.04+ (or other Linux distributions with GTK4)
+- **Python**: 3.10 or higher
+- **Hardware**: MSR605X device connected via USB
 
-## Installazione
+## Installation
 
-### Metodo 1: Pacchetto Debian (.deb) - Consigliato
+### Method 1: Debian Package (.deb) - Recommended
 
-Il modo più semplice per installare l'applicazione su Ubuntu/Debian:
+The easiest way to install the application on Ubuntu/Debian:
 
 ```bash
-# Scarica il pacchetto .deb dalla pagina Releases
+# Download the .deb package from the Releases page
 wget https://github.com/Sam4000133/msr605x-ubuntu/releases/latest/download/msr605x-utility_1.0.0-1_all.deb
 
-# Installa il pacchetto
+# Install the package
 sudo dpkg -i msr605x-utility_1.0.0-1_all.deb
 
-# Installa eventuali dipendenze mancanti
+# Install any missing dependencies
 sudo apt-get install -f
 ```
 
-Dopo l'installazione, l'applicazione sarà disponibile nel menu applicazioni.
+After installation, the application will be available in the applications menu.
 
-### Metodo 2: Ubuntu Software Center (Snap)
-
-Installa direttamente da Ubuntu Software Center o via terminale:
+### Method 2: Installation Script
 
 ```bash
-# Installa da Snap Store (quando disponibile)
-sudo snap install msr605x-utility
-
-# Abilita l'accesso al dispositivo USB
-sudo snap connect msr605x-utility:raw-usb
-```
-
-Oppure installa da file .snap locale:
-
-```bash
-# Scarica il pacchetto .snap dalla pagina Releases
-wget https://github.com/Sam4000133/msr605x-ubuntu/releases/latest/download/msr605x-utility_1.0.0_amd64.snap
-
-# Installa il pacchetto
-sudo snap install msr605x-utility_1.0.0_amd64.snap --dangerous
-
-# Abilita l'accesso al dispositivo USB
-sudo snap connect msr605x-utility:raw-usb
-```
-
-### Metodo 3: Script di Installazione
-
-```bash
-# Clona il repository
+# Clone the repository
 git clone https://github.com/Sam4000133/msr605x-ubuntu.git
 cd msr605x-ubuntu
 
-# Esegui lo script di installazione
+# Run the installation script
 chmod +x install.sh
 sudo ./install.sh
 ```
 
-### Metodo 4: Installazione Manuale
+### Method 3: Manual Installation
 
-#### 1. Installa le dipendenze di sistema
+#### 1. Install system dependencies
 
 ```bash
 sudo apt update
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1 libhidapi-hidraw0 libhidapi-dev
 ```
 
-#### 2. Clona il repository
+#### 2. Clone the repository
 
 ```bash
 git clone https://github.com/Sam4000133/msr605x-ubuntu.git
 cd msr605x-ubuntu
 ```
 
-#### 3. Installa le dipendenze Python
+#### 3. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-#### 4. Installa l'applicazione
+#### 4. Install the application
 
 ```bash
 pip install -e .
 ```
 
-#### 5. Configura i permessi udev (richiesto per accesso senza root)
+#### 5. Configure udev permissions (required for non-root access)
 
 ```bash
-# Copia le regole udev
+# Copy udev rules
 sudo cp data/99-msr605x.rules /etc/udev/rules.d/
 
-# Ricarica le regole
+# Reload rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
-# Aggiungi il tuo utente al gruppo plugdev
+# Add your user to the plugdev group
 sudo usermod -aG plugdev $USER
 ```
 
-**Importante**: Effettua il logout e login per applicare le modifiche al gruppo.
+**Important**: Log out and log back in to apply the group changes.
 
-### Metodo 3: Flatpak
+## Usage
 
-```bash
-# Installa flatpak-builder se non presente
-sudo apt install flatpak-builder
-
-# Compila e installa
-flatpak-builder --user --install build-dir com.github.msr605x.yaml
-```
-
-## Utilizzo
-
-### Avvio dell'Applicazione
+### Starting the Application
 
 ```bash
-# Da terminale
+# From terminal
 python -m src.main
 
-# Oppure dopo l'installazione
+# Or after installation
 msr605x-gui
 ```
 
-L'applicazione sarà anche disponibile nel menu applicazioni come "MSR605X Utility".
+The application will also be available in the applications menu as "MSR605X Utility".
 
-### Guida Rapida
+### Quick Guide
 
-1. **Connessione**: Il dispositivo viene rilevato e connesso automaticamente quando collegato via USB
-2. **Lettura**:
-   - Vai al pannello "Read Card"
-   - Seleziona il formato (ISO o Raw)
-   - Clicca "Read Card" e striscia la carta
-3. **Scrittura**:
-   - Vai al pannello "Write Card"
-   - Inserisci i dati per ogni traccia (senza sentinel %, ;, ? - vengono aggiunti automaticamente)
-   - Clicca "Write Card" e striscia una carta vuota
-4. **Cancellazione**:
-   - Vai al pannello "Erase Card"
-   - Seleziona le tracce da cancellare
-   - Conferma e striscia la carta
-5. **Impostazioni**:
-   - Configura coercività (Hi-Co/Lo-Co)
-   - Esegui test diagnostici sul dispositivo
+1. **Connection**: The device is automatically detected and connected when plugged via USB
+2. **Reading**:
+   - Go to the "Read Card" panel
+   - Select the format (ISO or Raw)
+   - Click "Read Card" and swipe the card
+3. **Writing**:
+   - Go to the "Write Card" panel
+   - Enter data for each track (without sentinels %, ;, ? - they are added automatically)
+   - Click "Write Card" and swipe a blank card
+4. **Erasing**:
+   - Go to the "Erase Card" panel
+   - Select the tracks to erase
+   - Confirm and swipe the card
+5. **Settings**:
+   - Configure coercivity (Hi-Co/Lo-Co)
+   - Run diagnostic tests on the device
 
-## Struttura del Progetto
+## Project Structure
 
 ```
 msr605x-ubuntu/
 ├── src/
-│   ├── main.py              # Punto di ingresso
-│   ├── app.py               # Classe GtkApplication
-│   ├── window.py            # Finestra principale
-│   ├── msr605x/             # Modulo comunicazione dispositivo
-│   │   ├── device.py        # Comunicazione USB HID
-│   │   ├── commands.py      # Comandi alto livello
-│   │   ├── constants.py     # Costanti protocollo
-│   │   └── parser.py        # Parser dati tracce
-│   ├── ui/                  # Componenti interfaccia
-│   │   ├── read_panel.py    # Pannello lettura
-│   │   ├── write_panel.py   # Pannello scrittura
-│   │   ├── erase_panel.py   # Pannello cancellazione
-│   │   └── settings_panel.py # Pannello impostazioni
+│   ├── main.py              # Entry point
+│   ├── app.py               # GtkApplication class
+│   ├── window.py            # Main window
+│   ├── msr605x/             # Device communication module
+│   │   ├── device.py        # USB HID communication
+│   │   ├── commands.py      # High-level commands
+│   │   ├── constants.py     # Protocol constants
+│   │   └── parser.py        # Track data parser
+│   ├── ui/                  # Interface components
+│   │   ├── read_panel.py    # Read panel
+│   │   ├── write_panel.py   # Write panel
+│   │   ├── erase_panel.py   # Erase panel
+│   │   └── settings_panel.py # Settings panel
 │   └── utils/
-│       └── file_io.py       # Gestione file
+│       └── file_io.py       # File management
 ├── data/
-│   ├── com.github.msr605x.desktop  # Entry desktop
-│   ├── com.github.msr605x.svg      # Icona
-│   ├── style.css                   # Stili CSS
-│   └── 99-msr605x.rules            # Regole udev
+│   ├── com.github.msr605x.desktop  # Desktop entry
+│   ├── com.github.msr605x.svg      # Icon
+│   ├── style.css                   # CSS styles
+│   └── 99-msr605x.rules            # Udev rules
 ├── tests/
-│   └── test_parser.py       # Test unitari
-├── pyproject.toml           # Configurazione progetto
-├── requirements.txt         # Dipendenze Python
-├── install.sh               # Script installazione
-├── com.github.msr605x.yaml  # Manifest Flatpak
-├── LICENSE                  # Licenza MIT
-└── README.md                # Questo file
+│   └── test_parser.py       # Unit tests
+├── pyproject.toml           # Project configuration
+├── requirements.txt         # Python dependencies
+├── install.sh               # Installation script
+├── LICENSE                  # MIT License
+└── README.md                # This file
 ```
 
-## Specifiche Tecniche
+## Technical Specifications
 
-### Tracce Magnetiche
+### Magnetic Tracks
 
-| Traccia | BPI | BPC | Max Caratteri | Tipo Dati |
-|---------|-----|-----|---------------|-----------|
-| Track 1 | 210 | 7   | 79            | Alfanumerico |
-| Track 2 | 75  | 5   | 40            | Numerico |
-| Track 3 | 210 | 5   | 107           | Numerico |
+| Track   | BPI | BPC | Max Characters | Data Type    |
+|---------|-----|-----|----------------|--------------|
+| Track 1 | 210 | 7   | 79             | Alphanumeric |
+| Track 2 | 75  | 5   | 40             | Numeric      |
+| Track 3 | 210 | 5   | 107            | Numeric      |
 
-### Comandi Dispositivo
+### Device Commands
 
-| Comando | Descrizione |
+| Command | Description |
 |---------|-------------|
-| ESC a   | Reset dispositivo |
-| ESC e   | Test comunicazione |
-| ESC v   | Versione firmware |
-| ESC r   | Lettura ISO |
-| ESC m   | Lettura Raw |
-| ESC w   | Scrittura ISO |
-| ESC n   | Scrittura Raw |
-| ESC c   | Cancellazione (mask: 0x01=T1, 0x02=T2, 0x04=T3) |
-| ESC x   | Imposta Hi-Co |
-| ESC y   | Imposta Lo-Co |
+| ESC a   | Reset device |
+| ESC e   | Communication test |
+| ESC v   | Firmware version |
+| ESC r   | ISO read |
+| ESC m   | Raw read |
+| ESC w   | ISO write |
+| ESC n   | Raw write |
+| ESC c   | Erase (mask: 0x01=T1, 0x02=T2, 0x04=T3) |
+| ESC x   | Set Hi-Co |
+| ESC y   | Set Lo-Co |
 
-### Note Tecniche Importanti
+### Important Technical Notes
 
-- **Sentinel**: NON includere i sentinel (%, ;, ?) nei dati di scrittura - il dispositivo li aggiunge automaticamente
-- **Formato Scrittura ISO**: `ESC w ESC s ESC 01 [data] ESC 02 [data] ESC 03 [data] ? FS`
-- **Protocollo HID**: Pacchetti da 64 byte con header (bit7=first, bit6=last, bits0-5=length)
+- **Sentinels**: Do NOT include sentinels (%, ;, ?) in write data - the device adds them automatically
+- **ISO Write Format**: `ESC w ESC s ESC 01 [data] ESC 02 [data] ESC 03 [data] ? FS`
+- **HID Protocol**: 64-byte packets with header (bit7=first, bit6=last, bits0-5=length)
 
-### Coercività
+### Coercivity
 
-- **Hi-Co (Alta Coercività)**: 2750-4000 Oe
-  - Più resistente alla smagnetizzazione
-  - Usata per carte che richiedono maggiore durabilità
+- **Hi-Co (High Coercivity)**: 2750-4000 Oe
+  - More resistant to demagnetization
+  - Used for cards requiring greater durability
 
-- **Lo-Co (Bassa Coercività)**: 300 Oe
-  - Standard per la maggior parte delle carte
-  - Più facile da codificare
+- **Lo-Co (Low Coercivity)**: 300 Oe
+  - Standard for most cards
+  - Easier to encode
 
-## Risoluzione Problemi
+## Troubleshooting
 
-### Il dispositivo non viene rilevato
+### Device not detected
 
-1. Verifica che il dispositivo sia collegato:
+1. Verify the device is connected:
    ```bash
    lsusb | grep -i "0801:0003"
    ```
 
-2. Controlla i permessi:
+2. Check permissions:
    ```bash
    ls -la /dev/hidraw*
    ```
 
-3. Assicurati che le regole udev siano installate:
+3. Make sure udev rules are installed:
    ```bash
    cat /etc/udev/rules.d/99-msr605x.rules
    ```
 
-4. Ricarica le regole udev:
+4. Reload udev rules:
    ```bash
    sudo udevadm control --reload-rules
    sudo udevadm trigger
    ```
 
-### Errore "Permission denied"
+### "Permission denied" error
 
-Assicurati di essere nel gruppo `plugdev`:
+Make sure you are in the `plugdev` group:
 ```bash
 groups $USER
 sudo usermod -aG plugdev $USER
-# Effettua logout e login
+# Log out and log back in
 ```
 
-### La GUI non si avvia
+### GUI doesn't start
 
-Verifica che GTK4 e libadwaita siano installati:
+Verify that GTK4 and libadwaita are installed:
 ```bash
 sudo apt install gir1.2-gtk-4.0 gir1.2-adw-1
 ```
 
-### Errori di lettura/scrittura
+### Read/write errors
 
-- Pulisci la testina del lettore
-- Striscia la carta a velocità costante
-- Verifica che la carta non sia danneggiata
-- Prova a cambiare la coercività nelle impostazioni
+- Clean the reader head
+- Swipe the card at a constant speed
+- Verify the card is not damaged
+- Try changing the coercivity in settings
 
-## Compilazione Pacchetti
+## Development
 
-Se vuoi compilare i pacchetti da solo invece di scaricarli:
-
-### Compilare il pacchetto .deb
+### Running Tests
 
 ```bash
-# Installa le dipendenze di build
-sudo apt install build-essential debhelper dh-python python3-all python3-setuptools devscripts
-
-# Clona il repository
-git clone https://github.com/Sam4000133/msr605x-ubuntu.git
-cd msr605x-ubuntu
-
-# Compila il pacchetto
-dpkg-buildpackage -us -uc -b
-
-# Il pacchetto sarà in ../msr605x-utility_*.deb
-```
-
-### Compilare il pacchetto Snap
-
-```bash
-# Installa snapcraft
-sudo apt install snapcraft
-
-# Clona il repository
-git clone https://github.com/Sam4000133/msr605x-ubuntu.git
-cd msr605x-ubuntu
-
-# Compila lo snap
-snapcraft
-
-# Il pacchetto sarà in ./msr605x-utility_*.snap
-```
-
-### Script di Build Automatico
-
-Usa lo script incluso per compilare facilmente:
-
-```bash
-# Compila entrambi i formati
-./build-packages.sh --all
-
-# Compila solo .deb
-./build-packages.sh --deb
-
-# Compila solo Snap
-./build-packages.sh --snap
-
-# Pulisci i file di build
-./build-packages.sh --clean
-```
-
-I pacchetti compilati saranno nella cartella `dist/`.
-
-## Sviluppo
-
-### Eseguire i Test
-
-```bash
-# Installa dipendenze di sviluppo
+# Install development dependencies
 pip install pytest pytest-cov
 
-# Esegui i test
+# Run tests
 pytest tests/
 ```
 
-### Contribuire
+### Contributing
 
-1. Fai un fork del repository
-2. Crea un branch per la tua feature (`git checkout -b feature/NuovaFunzionalita`)
-3. Committa le modifiche (`git commit -m 'Aggiunta nuova funzionalità'`)
-4. Pusha il branch (`git push origin feature/NuovaFunzionalita`)
-5. Apri una Pull Request
+1. Fork the repository
+2. Create a branch for your feature (`git checkout -b feature/NewFeature`)
+3. Commit your changes (`git commit -m 'Add new feature'`)
+4. Push the branch (`git push origin feature/NewFeature`)
+5. Open a Pull Request
 
-## Licenza
+## License
 
-Questo progetto è rilasciato sotto licenza MIT. Vedi il file [LICENSE](LICENSE) per i dettagli.
+This project is released under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## Crediti
+## Credits
 
-- Ispirato dai progetti [eucalyp/MSR605](https://github.com/eucalyp/MSR605) e [bentbot/MSR605-GUI](https://github.com/bentbot/MSR605-GUI)
-- Icona e design UI originali
+- Inspired by projects [eucalyp/MSR605](https://github.com/eucalyp/MSR605) and [bentbot/MSR605-GUI](https://github.com/bentbot/MSR605-GUI)
+- Original UI design and icons
 
 ## Disclaimer
 
-Questo software è fornito esclusivamente per scopi educativi e legittimi. Gli utenti sono responsabili di garantire la conformità con tutte le leggi e i regolamenti applicabili riguardanti l'uso della tecnologia delle carte a banda magnetica.
+This software is provided solely for educational and legitimate purposes. Users are responsible for ensuring compliance with all applicable laws and regulations regarding the use of magnetic stripe card technology.
 
-## Contatti
+## Contact
 
 - **Repository**: [https://github.com/Sam4000133/msr605x-ubuntu](https://github.com/Sam4000133/msr605x-ubuntu)
 - **Issues**: [https://github.com/Sam4000133/msr605x-ubuntu/issues](https://github.com/Sam4000133/msr605x-ubuntu/issues)
 
 ---
 
-Sviluppato con ❤️ per la community Linux
+Developed with ❤️ for the Linux community
