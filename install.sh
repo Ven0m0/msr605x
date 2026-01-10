@@ -36,7 +36,11 @@ fi
 
 if ! dpkg -l | grep -q libhidapi-hidraw0; then
     MISSING_DEPS="$MISSING_DEPS libhidapi-hidraw0"
+    if ! command -v apt-get >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
+        sudo pacman -Sq --noconfirm python-hidapi python-hid
+    fi
 fi
+
 
 if [ -n "$MISSING_DEPS" ]; then
     echo "Missing system packages:$MISSING_DEPS"
