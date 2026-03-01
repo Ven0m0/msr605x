@@ -63,9 +63,9 @@ echo ""
 echo "Installing MSR605X Utility..."
 
 if $INSTALL_SYSTEM; then
-    pip3 install --system .
+    uv pip install --system .
 else
-    pip3 install --user .
+    uv pip install .
 fi
 
 # Install udev rules
