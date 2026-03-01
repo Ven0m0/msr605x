@@ -10,6 +10,20 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run tests
+        run: uv run --group dev pytest
+
   build-deb:
     name: Build Debian Package
     runs-on: ubuntu-22.04
