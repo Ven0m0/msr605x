@@ -90,13 +90,13 @@ jobs:
 
     steps:
       - name: Download .deb artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: debian-package
           path: dist/
 
       - name: Download .snap artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: snap-package
           path: dist/
