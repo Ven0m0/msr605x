@@ -43,7 +43,7 @@ msr605x-gui = "src.main:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=7.0.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0.0",
     "ruff>=0.4.0",
 ]
